@@ -20,5 +20,5 @@ changes:
   fixes: []
 - type: improvement
   component: hugo
-  description: add options for serverURL and serverPort @melMass
+  description: add options for serverURL and serverPort, respect baseUrl. @melMass @Heiss
   fixes: []
