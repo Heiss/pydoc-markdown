@@ -14,3 +14,7 @@ changes:
   description: Fix multi-line parameter sphinx docstring rendering issue by switching to docstring-parser to parse the docstrings. @gmarks2149
   fixes:
   - '#195'
+- type: improvement
+  component: hugo
+  description: add options for serverURL and serverPort @melMass
+  fixes: []
