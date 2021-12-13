@@ -26,9 +26,10 @@ import sys
 import typing as t
 
 import docspec
+from deprecated import deprecated
 from docspec_python import format_arglist
 
-from pydoc_markdown.interfaces import Context, Renderer, Resolver, SourceLinker
+from pydoc_markdown.interfaces import Context, Renderer, Resolver, SinglePageRenderer, SourceLinker
 from pydoc_markdown.util.docspec import format_function_signature, is_method
 
 
@@ -37,7 +38,7 @@ def dotted_name(obj: docspec.ApiObject) -> str:
 
 
 @dataclasses.dataclass
-class MarkdownRenderer(Renderer):
+class MarkdownRenderer(Renderer, SinglePageRenderer):
   """
   Produces Markdown files. This renderer is often used by other renderers, such as
   #MkdocsRenderer and #HugoRenderer. It provides a wide variety of options to customize
@@ -143,9 +144,15 @@ class MarkdownRenderer(Renderer):
   #: Render decorators before function definitions.
   signature_with_decorators: bool = True
 
+  #: Render type hints for data elements in the header.
+  render_typehint_in_data_header: bool = False
+
   #: Add the string "python" after the backticks for code blocks. This is
   #: enabled by default.
   code_lang: bool = True
+
+  #: Render title of page at the beginning of the file.
+  render_page_title: bool = False
 
   #: Render a table of contents at the beginning of the file.
   render_toc: bool = False
@@ -349,6 +356,14 @@ class MarkdownRenderer(Renderer):
       if self.signature_in_header:
         title += '(' + self._format_arglist(obj) + ')'
 
+    if isinstance(obj, docspec.Data) and obj.datatype and self.render_typehint_in_data_header:
+      if self.code_headers:
+        title += f': {obj.datatype}'
+      elif self.html_headers:
+        title += f': <code>{obj.datatype}</code>'
+      else:
+        title += f': `{obj.datatype}`'
+
     if self.code_headers:
       if self.html_headers or self.sub_prefix:
         if self.sub_prefix and '.' in title:
@@ -357,7 +372,7 @@ class MarkdownRenderer(Renderer):
         title = '<code>{}</code>'.format(title)
       else:
         title = '`{}`'.format(title)
-    else:
+    elif not self.html_headers:
       title = self._escape(title)
     if isinstance(obj, docspec.Module) and self.descriptive_module_title:
       title = 'Module ' + title
@@ -370,20 +385,33 @@ class MarkdownRenderer(Renderer):
 
   def render_to_string(self, modules: t.List[docspec.Module]) -> str:
     fp = io.StringIO()
-    self.render_to_stream(modules, fp)
+    self.render_single_page(fp, modules)
     return fp.getvalue()
 
+  @deprecated(reason='use render_single_page() instead')
   def render_to_stream(self, modules: t.List[docspec.Module], stream: t.TextIO):
+    return self.render_single_page(stream, modules)
+
+  # SinglePageRenderer
+
+  def render_single_page(self, fp: t.TextIO, modules: t.List[docspec.Module], page_title: t.Optional[str] = None) -> None:
     self._resolver = MarkdownReferenceResolver(modules)
+    if self.render_page_title:
+      fp.write('# {}\n\n'.format(page_title))
 
     if self.render_toc:
       if self.render_toc_title:
-        stream.write('# {}\n\n'.format(self.render_toc_title))
+        if self.render_page_title:
+          # set to level2 since level1 is page title
+          fp.write('## {}\n\n'.format(self.render_toc_title))
+        else:
+          fp.write('# {}\n\n'.format(self.render_toc_title))
+
       for m in modules:
-        self._render_toc(stream, 0, m)
-      stream.write('\n')
+        self._render_toc(fp, 0, m)
+      fp.write('\n')
     for m in modules:
-      self._render_recursive(stream, 1, m)
+      self._render_recursive(fp, 1, m)
 
   # Renderer
 
